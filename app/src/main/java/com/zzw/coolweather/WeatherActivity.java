@@ -3,9 +3,13 @@ package com.zzw.coolweather;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -38,6 +42,12 @@ public class WeatherActivity extends AppCompatActivity {
     private SharedPreferences preferences;
     //背景图
     private ImageView bingPicImage;
+    //该控件可使ScrollView刷新数据
+    public SwipeRefreshLayout refreshLayout;
+    private String mWeatherId;
+    //
+    private Button homeButton;
+    public DrawerLayout drawerLayout;
     @Override
     public void onCreate(Bundle savedInstanceStatee) {
         super.onCreate (savedInstanceStatee);
@@ -62,8 +72,19 @@ public class WeatherActivity extends AppCompatActivity {
         comfortText=findViewById (R.id.comfort_text);
         carWashText=findViewById (R.id.car_wash_text);
         sportText=findViewById (R.id.sport_text);
-
+        refreshLayout=findViewById (R.id.swipe_refresh);
+        refreshLayout.setColorSchemeResources (R.color.colorPrimary);
         bingPicImage=findViewById (R.id.bing_pic_image);
+        //初始化home按钮和drawerLayout
+        homeButton=findViewById (R.id.back_button);
+        drawerLayout=findViewById (R.id.drawer_layout);
+        homeButton.setOnClickListener (new View.OnClickListener () {
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer (GravityCompat.START);
+            }
+        });
+
         preferences= PreferenceManager.getDefaultSharedPreferences (this);
         //加载背景图片
         String bing_pic = preferences.getString ("bing_pic", null);
@@ -76,14 +97,22 @@ public class WeatherActivity extends AppCompatActivity {
         String weatherString = preferences.getString ("weather", null);
         if (weatherString!=null){
             Weather weather = Utilty.handleWeatherResponse (weatherString);
+            mWeatherId=weather.basic.weatherId;
             showWeatherInfo (weather);
         }else {
             //无缓存去服务器查询
             String weatherId=getIntent ().getStringExtra ("weatherId");
+            mWeatherId=weatherId;
             weatherlayout.setVisibility (View.INVISIBLE);
             requestWeather(weatherId);
-
         }
+        //设置滑动监听
+        refreshLayout.setOnRefreshListener (new SwipeRefreshLayout.OnRefreshListener () {
+            @Override
+            public void onRefresh() {
+                requestWeather (mWeatherId);
+            }
+        });
     }
 
     private void loadBingPic() {
@@ -111,7 +140,7 @@ public class WeatherActivity extends AppCompatActivity {
         });
     }
 
-    private void requestWeather(final String weatherId) {
+    public void requestWeather(final String weatherId) {
         String weatherUrl="http://guolin.tech/api/weather?cityid="+weatherId+"&key=fc6f9a963dc8401a9c2bb519f8335dc3";
         HttpUtil.sendOkHttpRequest (weatherUrl, new Callback () {
             @Override
@@ -120,6 +149,7 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText (WeatherActivity.this,"网络请求失败",Toast.LENGTH_SHORT).show ();
+                        refreshLayout.setRefreshing (false);
                     }
                 });
             }
@@ -136,7 +166,10 @@ public class WeatherActivity extends AppCompatActivity {
                             editor.putString ("weather",weatherString);
                             editor.apply ();
                             showWeatherInfo(weather);
+                        }else {
+                            Toast.makeText (WeatherActivity.this,"获取数据失败",Toast.LENGTH_SHORT).show ();
                         }
+                        refreshLayout.setRefreshing (false);
                     }
                 });
             }
